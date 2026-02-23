@@ -20,6 +20,7 @@
 #define HTTP_TIMEOUT_MS 7000UL
 #define HTTP_CHUNK_SIZE_BYTES 1024
 #define WS2812B_DATA_PIN 6
+#define ENABLE_PLAY_INDICATOR true
 
 static Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(32, 8, 1, 4, WS2812B_DATA_PIN,
                                                       NEO_TILE_TOP + NEO_TILE_RIGHT + NEO_TILE_ROWS + NEO_TILE_ZIGZAG + NEO_MATRIX_TOP + NEO_MATRIX_LEFT + NEO_MATRIX_COLUMNS + NEO_MATRIX_ZIGZAG,
@@ -30,6 +31,9 @@ static WiFiSSLClient wifiSSLClient;
 static char cachedSpotifyAccessToken[384];
 static char cachedSpotifyCurrentAlbumId[96];
 static char cachedSpotifyAlbumImageUrl[96];
+static uint16_t cachedMatrix[1024];
+static bool previousIsPlaying = false;
+static bool isPlaying = false;
 
 enum HttpMethod { GET,
                   POST };
@@ -215,6 +219,11 @@ public:
     const char *key = path.getKey();
     if (!key || key[0] == '\0') { return; }
 
+    if (path.getCount() == 1 && strcmp(key, "is_playing") == 0 && val.isBool()) {
+      isPlaying = val.getBool();
+      return;
+    }
+
     if (inImages) {
       if (strcmp(key, "url") == 0 && val.isString()) {
         size_t valLength = strlen(val.getString());
@@ -376,7 +385,7 @@ static int jpegHttpOutput(JDEC *jd, void *bitmap, JRECT *rect) {
       // Nearest-neighbor map from decoded space -> 32x32
       int16_t dstX = (int32_t)(rect->left + col) * 32 / ctx->srcW;
       int16_t dstY = (int32_t)(rect->top + row) * 32 / ctx->srcH;
-      matrix.drawPixel(dstX, dstY, pixels[row * w + col]);
+      cachedMatrix[dstY * 32 + dstX] = pixels[row * w + col];  // Cache the pixel color for reuse
     }
   }
   return 1;  // Return 1 to tell decoder to continue decoding for next output block.
@@ -444,6 +453,7 @@ static bool fetchAndDisplayAlbumArt() {
     Serial.println(ctx.srcH);
 
     jd_decomp(&jdec, jpegHttpOutput, scale);
+    matrix.drawRGBBitmap(0, 0, cachedMatrix, 32, 32);
   } else {
     Serial.print(F("Error | jd_prepare: "));
     Serial.println((int)res);
@@ -463,6 +473,7 @@ static void updateScreen() {
 
   switch (status) {
     case NEW_CURRENT_ALBUM:
+      previousIsPlaying = !isPlaying;  // Forces play indicator update
       if (!fetchAndDisplayAlbumArt()) {
         // Album art exists, but download failed. Show BSOD 😭 to reflect the tragedy.
         for (uint16_t y = 0; y < 32; y++) {
@@ -585,6 +596,15 @@ void loop() {
       connectToWiFi();
     }
     updateScreen();
+    if (previousIsPlaying != isPlaying) {
+      previousIsPlaying = isPlaying;
+      if (ENABLE_PLAY_INDICATOR) {
+        // if (isPlaying) {
+        // } else {
+        // }
+        // matrix.show();
+      }
+    }
     lastUpdate = millis();
   }
 }

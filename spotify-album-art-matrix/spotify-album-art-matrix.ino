@@ -16,9 +16,9 @@
 #define ACCESS_TOKEN_BODY "grant_type=refresh_token&refresh_token=" REFRESH_TOKEN
 
 
-#define SCREEN_UPDATE_INTERVAL_MS 3000UL  // Increase this value if you are hitting Spotify API rate limits.
-#define HTTP_TIMEOUT_MS 15000UL
-#define HTTP_CHUNK_SIZE_BYTES 512
+#define SCREEN_UPDATE_INTERVAL_MS 1000UL  // Increase this value if you are hitting Spotify API rate limits.
+#define HTTP_TIMEOUT_MS 7000UL
+#define HTTP_CHUNK_SIZE_BYTES 1024
 #define WS2812B_DATA_PIN 6
 
 static Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(32, 8, 1, 4, WS2812B_DATA_PIN,
@@ -346,7 +346,7 @@ static size_t jpegHttpInput(JDEC *jd, uint8_t *buf, size_t len) {
     size_t skipped = 0;
     while (skipped < len && (ctx->client->connected() || ctx->client->available())) {
       if (millis() >= ctx->deadline) { break; }  // Exit early on timeout.
-      if (ctx->client->read() >= 0) { skipped++; }
+      if (ctx->client->available() && ctx->client->read() >= 0) { skipped++; }
     }
     return skipped;
   }
@@ -354,8 +354,9 @@ static size_t jpegHttpInput(JDEC *jd, uint8_t *buf, size_t len) {
   // Read Mode
   size_t total = 0;
   while (total < len && (ctx->client->connected() || ctx->client->available())) {
-    if (millis() >= ctx->deadline) { break; }             // Exit early on timeout.
-    int n = ctx->client->read(buf + total, len - total);  // Handle partial reads by looping until we read the requested len or hit timeout.
+    if (millis() >= ctx->deadline) { break; }  // Exit early on timeout.
+    int n = 0;
+    if (ctx->client->available()) { n = ctx->client->read(buf + total, len - total); }  // Handle partial reads by looping until we read the requested len or hit timeout.
     if (n > 0) { total += n; }
   }
   return total;
@@ -427,10 +428,17 @@ static bool fetchAndDisplayAlbumArt() {
     }
     ctx.srcW = jdec.width >> scale;
     ctx.srcH = jdec.height >> scale;
+
+    Serial.print(F("JPEG original dimensions: "));
+    Serial.print(jdec.width);
+    Serial.print(F(" x "));
+    Serial.println(jdec.height);
+
     Serial.print(F("JPEG decoded dimensions: "));
     Serial.print(ctx.srcW);
     Serial.print(F(" x "));
     Serial.println(ctx.srcH);
+
     jd_decomp(&jdec, jpegHttpOutput, scale);
   } else {
     Serial.print(F("Error | jd_prepare: "));
@@ -558,7 +566,7 @@ static void connectToWiFi() {
 
 void setup() {
   matrix.begin();
-  matrix.setBrightness(11);
+  matrix.setBrightness(11);  // UNO R4 WiFi can draw maximum 2A from 5V pin when powered via USB
   matrix.fillScreen(0);
   matrix.show();
 

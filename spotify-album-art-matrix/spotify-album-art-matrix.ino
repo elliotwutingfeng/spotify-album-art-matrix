@@ -487,6 +487,7 @@ static void updateScreen() {
             matrix.drawPixel(x, y, pgm_read_word(&bsod[y * 32 + x]));
           }
         }
+        emptyCache();
       }
       break;
     case EXISTING_CURRENT_ALBUM:
@@ -539,8 +540,8 @@ static void updateScreen() {
         matrix.setTextSize(4);
         matrix.print(F("?"));
         emptyCache();
-        break;
       }
+      break;
     case UNEXPECTED_ERROR:
       {
         // 🇸🇬 flag; a dose of patriotism for when all else fails.

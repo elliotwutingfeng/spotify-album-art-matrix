@@ -47,6 +47,12 @@ enum Status { NEW_CURRENT_ALBUM,
               UNEXPECTED_ERROR
 };
 
+static void emptyCache() {
+  cachedSpotifyCurrentAlbumId[0] = '\0';
+  cachedSpotifyAlbumImageUrl[0] = '\0';
+  memset(cachedMatrix, 0, sizeof(cachedMatrix));
+}
+
 // Non-blocking alternative to standard delay()
 static void millisDelay(unsigned long ms) {
   const unsigned long start = millis();
@@ -492,6 +498,7 @@ static void updateScreen() {
           matrix.drawPixel(x, y, pgm_read_word(&panda[y * 32 + x]));
         }
       }
+      emptyCache();
       break;
     case CANNOT_GET_ACCESS_TOKEN:
       {
@@ -505,10 +512,9 @@ static void updateScreen() {
         matrix.print(F("AUTH"));
         matrix.setCursor(1, 16);
         matrix.print(F("ERROR"));
-        matrix.show();
-        while (true)
-          ;  // We cannot proceed without an access token; credentials are likely misconfigured. Halt here to avoid spamming the API with failed requests.
+        emptyCache();
       }
+      break;
     case ALBUM_ID_PARSE_FAILED:
       {
         // No album ID; some entries have no albums, like podcasts. Draw a blue question mark ❓.
@@ -519,8 +525,9 @@ static void updateScreen() {
         matrix.setTextColor(blue);
         matrix.setTextSize(4);
         matrix.print(F("?"));
-        break;
+        emptyCache();
       }
+      break;
     case ALBUM_IMAGE_URL_PARSE_FAILED:
       {
         // Album exists, but no album art. Draw a yellow question mark ❓.
@@ -531,6 +538,7 @@ static void updateScreen() {
         matrix.setTextColor(yellow);
         matrix.setTextSize(4);
         matrix.print(F("?"));
+        emptyCache();
         break;
       }
     case UNEXPECTED_ERROR:
@@ -563,13 +571,19 @@ static void updateScreen() {
         matrix.drawRect(13, 10, 2, 2, flagWhite);
         matrix.drawRect(14, 7, 2, 2, flagWhite);
 
-        break;
+        emptyCache();
       }
+      break;
   }
 
   matrix.show();
 
   Serial.println(F("Screen updated"));
+
+  if (status == CANNOT_GET_ACCESS_TOKEN) {
+    while (true)
+      ;  // We cannot proceed without an access token; credentials are likely misconfigured. Halt here to avoid spamming the API with failed requests.
+  }
 }
 
 static void connectToWiFi() {

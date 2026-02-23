@@ -2,7 +2,7 @@
 
 [![LICENSE](https://img.shields.io/badge/LICENSE-BSD--3--CLAUSE-GREEN?style=for-the-badge)](LICENSE)
 
-Stream album art from your Spotify account in real time to a 32 by 32 WS2812B LED matrix via an Arduino UNO R4 WiFi microcontroller board; whatever is playing on your account will show up on the display instantly.
+Stream album art from your Spotify account in near real-time to a 32 by 32 WS2812B LED matrix via an Arduino UNO R4 WiFi microcontroller board; whatever is playing on your account will show up on the display instantly.
 
 ![panda-matrix](./img/panda-matrix.jpg)
 

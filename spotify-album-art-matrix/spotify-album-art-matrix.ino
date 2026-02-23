@@ -28,8 +28,8 @@ static Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(32, 8, 1, 4, WS2812B_DATA_
 static WiFiSSLClient wifiSSLClient;
 
 static char cachedSpotifyAccessToken[384];
-static char cachedSpotifyCurrentAlbumId[128];
-static char cachedSpotifyAlbumImageUrl[128];
+static char cachedSpotifyCurrentAlbumId[96];
+static char cachedSpotifyAlbumImageUrl[96];
 
 enum HttpMethod { GET,
                   POST };
@@ -121,7 +121,11 @@ static bool getAccessToken() {
           if (c == accessTokenHeader[nPos]) {
             if (++nPos == nLen) state = IN_VALUE;
           } else {
-            nPos = (c == accessTokenHeader[0]) ? 1 : 0;
+            // Mismatch: reset and recheck current character from the beginning
+            nPos = 0;
+            if (c == accessTokenHeader[nPos]) {
+              nPos = 1;
+            }
           }
           break;
         case IN_VALUE:

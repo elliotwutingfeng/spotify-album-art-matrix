@@ -495,16 +495,19 @@ static void updateScreen() {
       break;
     case CANNOT_GET_ACCESS_TOKEN:
       {
-        // Access denied. Draw a big magenta cross ❌.
-        const uint16_t magenta = 0xD95F;
+        // 401 unauthorized. Show "AUTH ERROR" in red font.
+        const uint16_t red = 0xF800;
         const uint16_t black = 0x0000;
         matrix.fillScreen(black);
-        const int thickness = 6;
-        for (int offset = -thickness / 2; offset <= thickness / 2; offset++) {
-          matrix.drawLine(0, 0 + offset, 31, 31 + offset, magenta);  // Diagonal '\'
-          matrix.drawLine(31, 0 + offset, 0, 31 + offset, magenta);  // Diagonal '/'
-        }
-        break;
+        matrix.setTextColor(red);
+        matrix.setTextSize(1);
+        matrix.setCursor(4, 7);
+        matrix.print(F("AUTH"));
+        matrix.setCursor(1, 16);
+        matrix.print(F("ERROR"));
+        matrix.show();
+        while (true)
+          ;  // We cannot proceed without an access token; credentials are likely misconfigured. Halt here to avoid spamming the API with failed requests.
       }
     case ALBUM_ID_PARSE_FAILED:
       {
@@ -580,13 +583,14 @@ static void connectToWiFi() {
 }
 
 void setup() {
+  Serial.begin(115200);
+
   matrix.begin();
   matrix.setBrightness(11);  // UNO R4 WiFi can draw maximum 2A from 5V pin when powered via USB
   matrix.fillScreen(0);
   matrix.show();
 
-  Serial.begin(115200);
-  millisDelay(500UL);  // Wait for serial to be ready
+  millisDelay(1000UL);  // Wait for serial to be ready
 }
 
 void loop() {

@@ -20,7 +20,6 @@
 #define HTTP_TIMEOUT_MS 7000UL
 #define HTTP_CHUNK_SIZE_BYTES 1024
 #define WS2812B_DATA_PIN 6
-#define ENABLE_PLAY_INDICATOR true
 #define DEBUG false
 
 static Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(32, 8, 1, 4, WS2812B_DATA_PIN,
@@ -33,8 +32,6 @@ static char cachedSpotifyAccessToken[384];
 static char cachedSpotifyCurrentAlbumId[96];
 static char cachedSpotifyAlbumImageUrl[96];
 static uint16_t cachedMatrix[1024];
-static bool previousIsPlaying = false;
-static bool isPlaying = false;
 
 enum HttpMethod { GET,
                   POST };
@@ -108,18 +105,28 @@ static bool getAccessToken() {
   }
 
   // Stream-search JSON for top-most "access_token":"<value>"
+  // It looks like JsonStreamingParser2 can't handle JSON without whitespaces.
   enum { HUNT,
          IN_VALUE } state = HUNT;
-  const char accessTokenHeader[] = "\"access_token\":\"";
+  const char accessTokenHeader[] = "\"access_token\":\"";  // No whitespace. JSON is compacted.
   size_t nLen = strlen(accessTokenHeader), nPos = 0, vPos = 0;
 
   unsigned long start = millis();
   uint8_t chunk[HTTP_CHUNK_SIZE_BYTES];
+  int chunkLimit = 4096 / sizeof(chunk);  // Safety limit to avoid infinite loop on large malformed JSON that doesn't contain the access token;
 
+  int numChunks = 0;
   bool done = false;
   char c = '\0';
 
   while (!done && (httpClient.connected() || httpClient.available()) && millis() - start < HTTP_TIMEOUT_MS) {
+    numChunks++;
+    if (numChunks > chunkLimit) {
+#ifdef DEBUG
+      Serial.println(F("Error | getAccessToken JSON parse exceeded chunk limit"));
+#endif
+      break;
+    }
     int n = 0;
     if (httpClient.available()) {
       n = httpClient.read(chunk, sizeof(chunk));
@@ -127,7 +134,7 @@ static bool getAccessToken() {
     if (n <= 0) { continue; }
     for (int i = 0; i < n && !done; i++) {
       uint8_t b = chunk[i];
-      if (b > 127) { continue; }  // Skip non-ASCII bytes
+      if (b > 127) { continue; }  // Skip non-ASCII bytes; they are probably irrelevant anyway
       c = (char)b;
       switch (state) {
         case HUNT:
@@ -230,11 +237,6 @@ public:
     const char *key = path.getKey();
     if (!key || key[0] == '\0') { return; }
 
-    if (path.getCount() == 1 && strcmp(key, "is_playing") == 0 && val.isBool()) {
-      isPlaying = val.getBool();
-      return;
-    }
-
     if (inImages) {
       if (strcmp(key, "url") == 0 && val.isString()) {
         size_t valLength = strlen(val.getString());
@@ -274,7 +276,7 @@ static Status handleCurrentlyPlayingResponse(HttpClient &httpClient) {
     if (n <= 0) { continue; }
     for (int i = 0; i < n && !handler.done; i++) {
       uint8_t b = chunk[i];
-      if (b > 127) { continue; }  // Our JSON parser cannot handle non-ASCII bytes
+      if (b > 127) { continue; }  // JsonStreamingParser2 cannot handle non-ASCII bytes
       parser.parse((char)b);
     }
   }
@@ -503,12 +505,11 @@ static void updateScreen() {
 #endif
   static Status previousStatus = (Status)(-1);
   Status status = saveCurrentlyPlayingDetails();
-  if (status != NEW_CURRENT_ALBUM && status == previousStatus) { return; }
+  if (status == previousStatus && status != NEW_CURRENT_ALBUM) { return; }
   previousStatus = status;
 
   switch (status) {
     case NEW_CURRENT_ALBUM:
-      previousIsPlaying = !isPlaying;  // Forces play indicator update
       if (!fetchAndDisplayAlbumArt()) {
         // Album art exists, but download failed. Show BSOD 😭 to reflect the tragedy.
         matrix.drawRGBBitmap(0, 0, bsod, 32, 32);
@@ -646,15 +647,6 @@ void loop() {
       connectToWiFi();
     }
     updateScreen();
-    if (previousIsPlaying != isPlaying) {
-      previousIsPlaying = isPlaying;
-      if (ENABLE_PLAY_INDICATOR) {
-        // if (isPlaying) {
-        // } else {
-        // }
-        // matrix.show();
-      }
-    }
     lastUpdate = millis();
   }
 }

@@ -21,6 +21,7 @@
 #define HTTP_CHUNK_SIZE_BYTES 1024
 #define WS2812B_DATA_PIN 6
 #define ENABLE_PLAY_INDICATOR true
+#define DEBUG false
 
 static Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(32, 8, 1, 4, WS2812B_DATA_PIN,
                                                       NEO_TILE_TOP + NEO_TILE_RIGHT + NEO_TILE_ROWS + NEO_TILE_ZIGZAG + NEO_MATRIX_TOP + NEO_MATRIX_LEFT + NEO_MATRIX_COLUMNS + NEO_MATRIX_ZIGZAG,
@@ -98,8 +99,10 @@ static bool getAccessToken() {
   int status = sendRequest(httpClient, POST, "/api/token", authHeader, ACCESS_TOKEN_BODY);
 
   if (status != 200) {
+#ifdef DEBUG
     Serial.print(F("Error | getAccessToken HTTP status code"));
     Serial.println(status);
+#endif
     httpClient.stop();
     return false;
   }
@@ -152,7 +155,9 @@ static bool getAccessToken() {
   httpClient.stop();
 
   if (!vPos || c != '"') {
+#ifdef DEBUG
     Serial.println(F("Error | getAccessToken parse failed"));
+#endif
     return false;
   }
   return true;
@@ -277,21 +282,27 @@ static Status handleCurrentlyPlayingResponse(HttpClient &httpClient) {
   httpClient.stop();
 
   if (handler.maybeAlbumId[0] == '\0') {
-    // Current media has no album id
-    // This is usually the case for podcasts
-    // Some songs may not have album art
+// Current media has no album id
+// This is usually the case for podcasts
+// Some songs may not have album art
+#ifdef DEBUG
     Serial.println(F("Album ID: parse failed"));
+#endif
     return ALBUM_ID_PARSE_FAILED;
   }
 
   if (strcmp(handler.maybeAlbumId, cachedSpotifyCurrentAlbumId) == 0) {
+#ifdef DEBUG
     Serial.print(F("Existing Album ID: "));
     Serial.println(handler.maybeAlbumId);
+#endif
     return EXISTING_CURRENT_ALBUM;
   }
 
   if (handler.bestUrl[0] == '\0') {
+#ifdef DEBUG
     Serial.println(F("Album Image URL: parse failed"));
+#endif
     return ALBUM_IMAGE_URL_PARSE_FAILED;
   }
 
@@ -325,7 +336,9 @@ static Status saveCurrentlyPlayingDetails() {
     httpClient.stop();
 
     if (status == 204) {
+#ifdef DEBUG
       Serial.println(F("No current album"));
+#endif
       return NO_CURRENT_ALBUM;
     }
     if (status == 401) {
@@ -337,9 +350,11 @@ static Status saveCurrentlyPlayingDetails() {
       continue;
     }
 
-    // Unexpected error type; do not retry.
+// Unexpected error type; do not retry.
+#ifdef DEBUG
     Serial.print(F("Error | saveCurrentlyPlayingDetails HTTP status code"));
     Serial.println(status);
+#endif
     return UNEXPECTED_ERROR;
   }
 }
@@ -404,12 +419,16 @@ static bool fetchAndDisplayAlbumArt() {
   const char *spotifyImageUrlHostStart = cachedSpotifyAlbumImageUrl + 8;  // skip "https://"
   const char *path = strchr(spotifyImageUrlHostStart, '/');
   if (!path) {
+#ifdef DEBUG
     Serial.println(F("Malformed image URL: no path"));
+#endif
     return false;
   }
   size_t spotifyImageUrlHostLen = path - spotifyImageUrlHostStart;
   if (spotifyImageUrlHostLen >= sizeof(cachedSpotifyAlbumImageUrl)) {
+#ifdef DEBUG
     Serial.println(F("Malformed image URL: host too long"));
+#endif
     return false;
   }
   char spotifyImageUrlHost[sizeof(cachedSpotifyAlbumImageUrl)];
@@ -421,17 +440,21 @@ static bool fetchAndDisplayAlbumArt() {
 
   if (status != 200) {
     httpClient.stop();
+#ifdef DEBUG
     Serial.print(F("Error | fetchAndDisplayAlbumArt HTTP status code"));
     Serial.println(status);
+#endif
     return false;
   }
 
+#ifdef DEBUG
   Serial.println(F("==="));
   Serial.print(F("New Album ID: "));
   Serial.println(cachedSpotifyCurrentAlbumId);
   Serial.print(F("Album Image URL: "));
   Serial.println(cachedSpotifyAlbumImageUrl);
   Serial.println(F("==="));
+#endif
 
   static uint8_t jpegWorkPool[TJPGD_WORKSPACE_SIZE];
   JDEC jdec;
@@ -448,6 +471,7 @@ static bool fetchAndDisplayAlbumArt() {
     ctx.srcW = jdec.width >> scale;
     ctx.srcH = jdec.height >> scale;
 
+#ifdef DEBUG
     Serial.print(F("JPEG original dimensions: "));
     Serial.print(jdec.width);
     Serial.print(F(" x "));
@@ -457,12 +481,15 @@ static bool fetchAndDisplayAlbumArt() {
     Serial.print(ctx.srcW);
     Serial.print(F(" x "));
     Serial.println(ctx.srcH);
+#endif
 
     jd_decomp(&jdec, jpegHttpOutput, scale);
     matrix.drawRGBBitmap(0, 0, cachedMatrix, 32, 32);
   } else {
+#ifdef DEBUG
     Serial.print(F("Error | jd_prepare: "));
     Serial.println((int)res);
+#endif
   }
   httpClient.stop();
 
@@ -471,7 +498,9 @@ static bool fetchAndDisplayAlbumArt() {
 
 // Update screen based on currently playing album details.
 static void updateScreen() {
+#ifdef DEBUG
   Serial.println(F("Updating screen..."));
+#endif
   static Status previousStatus = (Status)(-1);
   Status status = saveCurrentlyPlayingDetails();
   if (status != NEW_CURRENT_ALBUM && status == previousStatus) { return; }
@@ -482,11 +511,7 @@ static void updateScreen() {
       previousIsPlaying = !isPlaying;  // Forces play indicator update
       if (!fetchAndDisplayAlbumArt()) {
         // Album art exists, but download failed. Show BSOD 😭 to reflect the tragedy.
-        for (uint16_t y = 0; y < 32; y++) {
-          for (uint16_t x = 0; x < 32; x++) {
-            matrix.drawPixel(x, y, pgm_read_word(&bsod[y * 32 + x]));
-          }
-        }
+        matrix.drawRGBBitmap(0, 0, bsod, 32, 32);
         emptyCache();
       }
       break;
@@ -494,11 +519,7 @@ static void updateScreen() {
       return;
     case NO_CURRENT_ALBUM:
       // Nothing playing. Baby panda 妹猪 (mèi zhū) 🐼 is sleeping peacefully.
-      for (uint16_t y = 0; y < 32; y++) {
-        for (uint16_t x = 0; x < 32; x++) {
-          matrix.drawPixel(x, y, pgm_read_word(&panda[y * 32 + x]));
-        }
-      }
+      matrix.drawRGBBitmap(0, 0, panda, 32, 32);
       emptyCache();
       break;
     case CANNOT_GET_ACCESS_TOKEN:
@@ -579,7 +600,9 @@ static void updateScreen() {
 
   matrix.show();
 
+#ifdef DEBUG
   Serial.println(F("Screen updated"));
+#endif
 
   if (status == CANNOT_GET_ACCESS_TOKEN) {
     while (true)
@@ -588,24 +611,32 @@ static void updateScreen() {
 }
 
 static void connectToWiFi() {
+#ifdef DEBUG
   Serial.println(F("Connecting to WiFi"));
+#endif
   WiFi.begin(SECRET_SSID, SECRET_PASS);
   while (WiFi.status() != WL_CONNECTED) {
     millisDelay(500UL);
   }
+#ifdef DEBUG
   Serial.println(F("WiFi connected"));
+#endif
   millisDelay(100UL);  // let TLS stack settle
 }
 
 void setup() {
+#ifdef DEBUG
   Serial.begin(115200);
+#endif
 
   matrix.begin();
   matrix.setBrightness(11);  // UNO R4 WiFi can draw maximum 2A from 5V pin when powered via USB
   matrix.fillScreen(0);
   matrix.show();
 
+#ifdef DEBUG
   millisDelay(1000UL);  // Wait for serial to be ready
+#endif
 }
 
 void loop() {

@@ -10,6 +10,7 @@
 #include "src/JsonStreamingParser2.h"  // json-streaming-parser2 by mrcodetastic <https://github.com/mrcodetastic/json-streaming-parser2>
 
 #include "bsod.h"
+#include "loading.h"
 #include "panda.h"
 
 #include "arduino_secrets.h"
@@ -612,6 +613,8 @@ static void updateScreen() {
 }
 
 static void connectToWiFi() {
+  matrix.drawRGBBitmap(0, 0, loading, 32, 32);
+  matrix.show();
 #ifdef DEBUG
   Serial.println(F("Connecting to WiFi"));
 #endif
@@ -632,7 +635,7 @@ void setup() {
 
   matrix.begin();
   matrix.setBrightness(11);  // UNO R4 WiFi can draw maximum 2A from 5V pin when powered via USB
-  matrix.fillScreen(0);
+  matrix.drawRGBBitmap(0, 0, loading, 32, 32);
   matrix.show();
 
 #ifdef DEBUG

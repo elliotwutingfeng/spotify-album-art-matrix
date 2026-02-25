@@ -406,8 +406,8 @@ static int jpegHttpOutput(JDEC *jd, void *bitmap, JRECT *rect) {
   uint16_t w = rect->right - rect->left + 1;
   uint16_t h = rect->bottom - rect->top + 1;
 
-  int32_t scaleX = 32 / ctx->srcW;
-  int32_t scaleY = 32 / ctx->srcH;
+  float scaleX = 32.0f / ctx->srcW;
+  float scaleY = 32.0f / ctx->srcH;
 
   for (uint16_t row = 0; row < h; row++) {
     for (uint16_t col = 0; col < w; col++) {

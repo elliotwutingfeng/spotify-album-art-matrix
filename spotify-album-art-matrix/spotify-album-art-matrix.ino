@@ -404,11 +404,16 @@ static int jpegHttpOutput(JDEC *jd, void *bitmap, JRECT *rect) {
   JpegHttpContext *ctx = (JpegHttpContext *)jd->device;
   uint16_t *pixels = (uint16_t *)bitmap;  // Each pixel is 16-bit RGB565.
   uint16_t w = rect->right - rect->left + 1;
-  for (uint16_t row = 0; row <= rect->bottom - rect->top; row++) {
+  uint16_t h = rect->bottom - rect->top + 1;
+
+  int32_t scaleX = 32 / ctx->srcW;
+  int32_t scaleY = 32 / ctx->srcH;
+
+  for (uint16_t row = 0; row < h; row++) {
     for (uint16_t col = 0; col < w; col++) {
       // Nearest-neighbor map from decoded space -> 32x32
-      int16_t dstX = (int32_t)(rect->left + col) * 32 / ctx->srcW;
-      int16_t dstY = (int32_t)(rect->top + row) * 32 / ctx->srcH;
+      int16_t dstX = (int32_t)(rect->left + col) * scaleX;
+      int16_t dstY = (int32_t)(rect->top + row) * scaleY;
       cachedMatrix[dstY * 32 + dstX] = pixels[row * w + col];  // Cache the pixel color for reuse
     }
   }
@@ -613,14 +618,17 @@ static void updateScreen() {
 }
 
 static void connectToWiFi() {
+  if (WiFi.status() == WL_CONNECTED) { return; }
+
   matrix.drawRGBBitmap(0, 0, loading, 32, 32);
   matrix.show();
 #ifdef DEBUG
   Serial.println(F("Connecting to WiFi"));
 #endif
   WiFi.begin(SECRET_SSID, SECRET_PASS);
+
   while (WiFi.status() != WL_CONNECTED) {
-    millisDelay(500UL);
+    millisDelay(100UL);
   }
 #ifdef DEBUG
   Serial.println(F("WiFi connected"));
@@ -635,8 +643,6 @@ void setup() {
 
   matrix.begin();
   matrix.setBrightness(11);  // UNO R4 WiFi can draw maximum 2A from 5V pin when powered via USB
-  matrix.drawRGBBitmap(0, 0, loading, 32, 32);
-  matrix.show();
 
 #ifdef DEBUG
   millisDelay(1000UL);  // Wait for serial to be ready
@@ -646,9 +652,7 @@ void setup() {
 void loop() {
   static unsigned long lastUpdate = SCREEN_UPDATE_INTERVAL_MS;
   if (millis() - lastUpdate >= SCREEN_UPDATE_INTERVAL_MS) {
-    if (WiFi.status() != WL_CONNECTED) {
-      connectToWiFi();
-    }
+    connectToWiFi();
     updateScreen();
     lastUpdate = millis();
   }

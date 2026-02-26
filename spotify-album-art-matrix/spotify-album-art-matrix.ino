@@ -16,23 +16,34 @@
 #include "arduino_secrets.h"
 #define ACCESS_TOKEN_BODY "grant_type=refresh_token&refresh_token=" REFRESH_TOKEN
 
+// NOTE: Only overall 32 x 32 matrix is supported.
 
+/* -------------------------------------- */
+#define PANEL_WIDTH 32
+#define PANEL_HEIGHT 8
+#define NUM_PANELS_ALONG_WIDTH 1
+#define NUM_PANELS_ALONG_HEIGHT 4
+
+#define WS2812B_DATA_PIN 6
 #define SCREEN_UPDATE_INTERVAL_MS 1000UL  // Increase this value if you are hitting Spotify API rate limits.
+/* -------------------------------------- */
+
+#define MINIMUM_SRC_IMG_WIDTH 64   // Leave it at 64
+#define MINIMUM_SRC_IMG_HEIGHT 64  // Leave it at 64
 #define HTTP_TIMEOUT_MS 7000UL
 #define HTTP_CHUNK_SIZE_BYTES 1024
-#define WS2812B_DATA_PIN 6
 #define DEBUG false
 
-Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(32, 8, 1, 4, WS2812B_DATA_PIN,
+Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(PANEL_WIDTH, PANEL_HEIGHT, NUM_PANELS_ALONG_WIDTH, NUM_PANELS_ALONG_HEIGHT, WS2812B_DATA_PIN,
                                                     NEO_TILE_TOP + NEO_TILE_RIGHT + NEO_TILE_ROWS + NEO_TILE_ZIGZAG + NEO_MATRIX_TOP + NEO_MATRIX_LEFT + NEO_MATRIX_COLUMNS + NEO_MATRIX_ZIGZAG,
                                                     NEO_GRB + NEO_KHZ800);
 
 static WiFiSSLClient wifiSSLClient;
 
-char cachedSpotifyAccessToken[384];
-char cachedSpotifyCurrentAlbumId[96];
-char cachedSpotifyAlbumImageUrl[96];
-uint16_t cachedMatrix[1024];
+static char cachedSpotifyAccessToken[384];
+static char cachedSpotifyCurrentAlbumId[96];
+static char cachedSpotifyAlbumImageUrl[96];
+static uint16_t cachedMatrix[(PANEL_WIDTH * NUM_PANELS_ALONG_WIDTH) * (PANEL_HEIGHT * NUM_PANELS_ALONG_HEIGHT)];
 
 enum HttpMethod { GET,
                   POST };
@@ -171,20 +182,22 @@ static bool getAccessToken() {
   return true;
 }
 
-// Extract album ID and smallest-width album image URL from
+// Extract album ID and smallest album image URL (with minimum dimensions `MINIMUM_SRC_IMG_WIDTH` and `MINIMUM_SRC_IMG_HEIGHT`) from
 // the Spotify currently-playing JSON response.
-// Targeted paths: "item.album.id" and "item.album.images[*].{url,width}"
+// Targeted paths: "item.album.id" and "item.album.images[*].{url,width,height}"
 class SpotifyAlbumHandler : public JsonHandler {
 public:
   char maybeAlbumId[sizeof(cachedSpotifyCurrentAlbumId)];
   char bestUrl[sizeof(cachedSpotifyAlbumImageUrl)];
   int bestWidth;
+  int bestHeight;
   bool done;
 
 private:
   bool inImages;
   char curUrl[sizeof(cachedSpotifyAlbumImageUrl)];
   int curWidth;
+  int curHeight;
 
   // Return true if path is exactly item -> album -> ${key}
   static bool isItemAlbumKey(ElementPath &path, const char *key) {
@@ -197,10 +210,12 @@ public:
     maybeAlbumId[0] = '\0';
     bestUrl[0] = '\0';
     bestWidth = 0x7FFFFFFF;
+    bestHeight = 0x7FFFFFFF;
     done = false;
     inImages = false;
     curUrl[0] = '\0';
     curWidth = -1;
+    curHeight = -1;
   }
 
   void startDocument() {}
@@ -224,12 +239,14 @@ public:
     if (inImages) {
       curUrl[0] = '\0';
       curWidth = -1;
+      curHeight = -1;
     }
   }
 
   void endObject(ElementPath path) {
-    if (inImages && curUrl[0] != '\0' && curWidth != -1 && curWidth < bestWidth) {
+    if (inImages && curUrl[0] != '\0' && curWidth != -1 && curHeight != -1 && curWidth < bestWidth && curWidth >= MINIMUM_SRC_IMG_WIDTH && curHeight >= MINIMUM_SRC_IMG_HEIGHT) {
       bestWidth = curWidth;
+      bestHeight = curHeight;
       memcpy(bestUrl, curUrl, strlen(curUrl) + 1);
     }
   }
@@ -248,6 +265,12 @@ public:
           curWidth = (int)val.getInt();
         } else if (val.isFloat()) {
           curWidth = (int)val.getFloat();
+        }
+      } else if (strcmp(key, "height") == 0) {
+        if (val.isInt()) {
+          curHeight = (int)val.getInt();
+        } else if (val.isFloat()) {
+          curHeight = (int)val.getFloat();
         }
       }
       return;
@@ -406,15 +429,15 @@ static int jpegHttpOutput(JDEC *jd, void *bitmap, JRECT *rect) {
   uint16_t w = rect->right - rect->left + 1;
   uint16_t h = rect->bottom - rect->top + 1;
 
-  float scaleX = 32.0f / ctx->srcW;
-  float scaleY = 32.0f / ctx->srcH;
+  float scaleX = float(matrix->width()) / ctx->srcW;
+  float scaleY = float(matrix->height()) / ctx->srcH;
 
   for (uint16_t row = 0; row < h; row++) {
     for (uint16_t col = 0; col < w; col++) {
       // Nearest-neighbor map from decoded space -> 32x32
       int16_t dstX = (int32_t)(rect->left + col) * scaleX;
       int16_t dstY = (int32_t)(rect->top + row) * scaleY;
-      cachedMatrix[dstY * 32 + dstX] = pixels[row * w + col];  // Cache the pixel color for reuse
+      cachedMatrix[dstY * matrix->width() + dstX] = pixels[row * w + col];  // Cache the pixel color for reuse
     }
   }
   return 1;  // Return 1 to tell decoder to continue decoding for next output block.
@@ -473,7 +496,7 @@ static bool fetchAndDisplayAlbumArt() {
     // Pick the smallest scale (biggest reduction) where decoded size still >= 32
     // in both axes, so we don't upscale. Then nearest-neighbor maps to 32x32.
     uint8_t scale = 0;
-    while (scale < 3 && ((jdec.width >> (scale + 1)) >= 64) && ((jdec.height >> (scale + 1)) >= 64)) {
+    while (scale < 3 && ((jdec.width >> (scale + 1)) >= MINIMUM_SRC_IMG_WIDTH) && ((jdec.height >> (scale + 1)) >= MINIMUM_SRC_IMG_HEIGHT)) {
       scale++;
     }
     ctx.srcW = jdec.width >> scale;
@@ -492,7 +515,7 @@ static bool fetchAndDisplayAlbumArt() {
 #endif
 
     jd_decomp(&jdec, jpegHttpOutput, scale);
-    matrix->drawRGBBitmap(0, 0, cachedMatrix, 32, 32);
+    matrix->drawRGBBitmap(0, 0, cachedMatrix, matrix->width(), matrix->height());
   } else {
 #if DEBUG
     Serial.print(F("Error | jd_prepare: "));
@@ -518,7 +541,7 @@ static void updateScreen() {
     case NEW_CURRENT_ALBUM:
       if (!fetchAndDisplayAlbumArt()) {
         // Album art exists, but download failed. Show BSOD 😭 to reflect the tragedy.
-        matrix->drawRGBBitmap(0, 0, bsod, 32, 32);
+        matrix->drawRGBBitmap(0, 0, bsod, matrix->width(), matrix->height());
         emptyCache();
       }
       break;
@@ -526,7 +549,7 @@ static void updateScreen() {
       return;
     case NO_CURRENT_ALBUM:
       // Nothing playing. Baby panda 妹猪 (mèi zhū) 🐼 is sleeping peacefully.
-      matrix->drawRGBBitmap(0, 0, panda, 32, 32);
+      matrix->drawRGBBitmap(0, 0, panda, matrix->width(), matrix->height());
       emptyCache();
       break;
     case CANNOT_GET_ACCESS_TOKEN:
@@ -574,6 +597,8 @@ static void updateScreen() {
       {
         // 🇸🇬 flag; a dose of patriotism for when all else fails.
 
+        // NOTE: 32 x 32 only.
+
         // colors
         const uint16_t flagRed = 0xE926;
         const uint16_t flagWhite = 0xFFFF;
@@ -620,7 +645,7 @@ static void updateScreen() {
 static void connectToWiFi() {
   if (WiFi.status() == WL_CONNECTED) { return; }
 
-  matrix->drawRGBBitmap(0, 0, loading, 32, 32);
+  matrix->drawRGBBitmap(0, 0, loading, matrix->width(), matrix->height());
   matrix->show();
 #if DEBUG
   Serial.println(F("Connecting to WiFi"));

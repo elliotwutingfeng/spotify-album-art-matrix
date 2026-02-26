@@ -2,11 +2,11 @@
 
 [![LICENSE](https://img.shields.io/badge/LICENSE-BSD--3--CLAUSE-GREEN?style=for-the-badge)](LICENSE)
 
-Stream album art from your Spotify account in near real-time to a 32 by 32 WS2812B LED matrix via an Arduino UNO R4 WiFi microcontroller board; whatever is playing on your account will show up on the display instantly.
+Stream album art from your Spotify account to a 32 by 32 WS2812B LED matrix via an Arduino UNO R4 WiFi board.
 
 ![panda-matrix](./img/panda-matrix.jpg)
 
-Otherwise, [baby panda 🐼](https://baike.baidu.com/en/item/Giant%20panda%20Mei%20Zhu/32477) will be shown instead when no Spotify client is active or when playback is completely stopped.
+When no Spotify client is active or when playback is completely stopped, [baby panda 🐼](https://baike.baidu.com/en/item/Giant%20panda%20Mei%20Zhu/32477) will be shown instead.
 
 ## You Will Need
 

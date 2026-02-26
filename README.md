@@ -4,9 +4,9 @@
 
 Stream album art from your Spotify account to a 32 by 32 WS2812B LED matrix via an Arduino UNO R4 WiFi board.
 
-![panda-matrix](./img/panda-matrix.jpg)
+![animation](./img/animation.gif)
 
-When no Spotify client is active or when playback is completely stopped, [baby panda 🐼](https://baike.baidu.com/en/item/Giant%20panda%20Mei%20Zhu/32477) will be shown instead.
+> Album art by [Tom Lehrer](https://simple.wikipedia.org/wiki/Tom_Lehrer); public domain.
 
 ## You Will Need
 
@@ -68,7 +68,7 @@ When no Spotify client is active or when playback is completely stopped, [baby p
 
 1. [Daisy-chain](<https://simple.wikipedia.org/wiki/Daisy_chain_(engineering)>) the 4 WS2812B LED matrix panels together (Data Out of the first panel to Data In of the second panel, and so on). Data Out of the last panel should not be connected to anything.
 
-1. Depending on how you arrange the panels, and how your panels are manufactured, you may need to adjust the `static Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix` variable configuration in [spotify-album-art-matrix.ino](spotify-album-art-matrix/spotify-album-art-matrix.ino) to ensure the pixels are mapped correctly.
+1. Depending on how you arrange the panels, and how your panels are manufactured, you may need to adjust the `Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix` variable configuration in [spotify-album-art-matrix.ino](spotify-album-art-matrix/spotify-album-art-matrix.ino) to ensure the pixels are mapped correctly.
 
 > [!CAUTION]
 > Ensure that the Arduino is unplugged when connecting the LED matrix panel to avoid any potential short circuits or damage to the components.
@@ -79,6 +79,12 @@ When no Spotify client is active or when playback is completely stopped, [baby p
     - LED matrix panel **Data In** (⚠️ not **Data Out**) to Arduino **Digital Pin 6** (with optional 470 Ω resistor in series)
 
 1. Plug in the Arduino, and play a song on Spotify. The LED matrix panel should light up and start displaying the album art of the currently playing track.
+
+## Default State
+
+When no Spotify client is active or when playback is completely stopped, [baby panda 🐼](https://baike.baidu.com/en/item/Giant%20panda%20Mei%20Zhu/32477) will be shown instead.
+
+![panda-matrix](./img/panda-matrix.jpg)
 
 ## Sources
 

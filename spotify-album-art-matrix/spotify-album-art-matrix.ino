@@ -473,7 +473,7 @@ static bool fetchAndDisplayAlbumArt() {
     // Pick the smallest scale (biggest reduction) where decoded size still >= 32
     // in both axes, so we don't upscale. Then nearest-neighbor maps to 32x32.
     uint8_t scale = 0;
-    while (scale < 3 && ((jdec.width >> (scale + 1)) >= 32) && ((jdec.height >> (scale + 1)) >= 32)) {
+    while (scale < 3 && ((jdec.width >> (scale + 1)) >= 64) && ((jdec.height >> (scale + 1)) >= 64)) {
       scale++;
     }
     ctx.srcW = jdec.width >> scale;

@@ -56,7 +56,9 @@ Stream album art from your Spotify account to a 32 by 32 WS2812B LED matrix via 
 
 ### Hardware Setup
 
-1. From Arduino IDE, install the following libraries:
+1. From Arduino IDE, install `Arduino UNO R4 Boards` from Board Manager.
+
+1. Install the following libraries from Library Manager:
     - [ArduinoHttpClient](https://github.com/arduino-libraries/ArduinoHttpClient) by Arduino
     - [Adafruit GFX Library](https://github.com/adafruit/Adafruit-GFX-Library) by Adafruit
     - [Adafruit NeoMatrix](https://github.com/adafruit/Adafruit_NeoMatrix) by Adafruit
@@ -64,7 +66,7 @@ Stream album art from your Spotify account to a 32 by 32 WS2812B LED matrix via 
     - [base64](https://github.com/Densaugeo/base64_arduino) by Densaugeo
     - [TJpg_Decoder](https://github.com/Bodmer/TJpg_Decoder) by Bodmer
 
-1. Open and upload [spotify-album-art-matrix.ino](spotify-album-art-matrix/spotify-album-art-matrix.ino) to your Arduino UNO R4. Once uploaded, unplug the Arduino.
+1. Open and upload [spotify-album-art-matrix.ino](spotify-album-art-matrix/spotify-album-art-matrix.ino) to your Arduino; ensure that the correct board (Arduino UNO R4 WiFi) and port are selected. Once uploaded, unplug the Arduino.
 
 1. [Daisy-chain](<https://simple.wikipedia.org/wiki/Daisy_chain_(engineering)>) the 4 WS2812B LED matrix panels together (Data Out of the first panel to Data In of the second panel, and so on). Data Out of the last panel should not be connected to anything.
 

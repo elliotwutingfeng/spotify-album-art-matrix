@@ -30,7 +30,7 @@
 
 #define MINIMUM_SRC_IMG_WIDTH 64   // Leave it at 64
 #define MINIMUM_SRC_IMG_HEIGHT 64  // Leave it at 64
-#define HTTP_TIMEOUT_MS 7000UL
+#define HTTP_TIMEOUT_MS 10000UL
 #define HTTP_CHUNK_SIZE_BYTES 1024
 #define DEBUG false
 
@@ -338,16 +338,23 @@ static Status handleCurrentlyPlayingResponse(HttpClient &httpClient) {
   return NEW_CURRENT_ALBUM;
 }
 
-// Retrieve currently playing album details from Spotify Web API and save to cache with maximum 2 attempts (i.e. 1 retry if the first attempt fails with 401, which may indicate an expired cached access token). Return the album update status (i.e. whether there is a new current album, the same current album, or no current album, or error status if any step fails)
+// Retrieve currently playing album details from
+// Spotify Web API and save to cache with maximum 3 attempts (i.e. Retry if attempt fails with 401, which may indicate an expired cached access token).
+// Return the album update status (i.e. whether there is a new current album, the same current album, or no current album, or error status if any step fails)
 static Status saveCurrentlyPlayingDetails() {
-  const int maxTries = 2;
+  const int maxTries = 3;
 
   for (int attempt = 0; attempt < maxTries; attempt++) {
-    HttpClient httpClient(wifiSSLClient, "api.spotify.com", 443);
     if (!getAccessToken()) {
-      httpClient.stop();
-      return CANNOT_GET_ACCESS_TOKEN;
+      if (attempt == maxTries - 1) {
+        return CANNOT_GET_ACCESS_TOKEN;
+      }
+      // Clear cached access token and retry with a fresh one.
+      cachedSpotifyAccessToken[0] = '\0';
+      continue;
     }
+
+    HttpClient httpClient(wifiSSLClient, "api.spotify.com", 443);
 
     char authHeader[7 + sizeof(cachedSpotifyAccessToken)];
     memcpy(authHeader, "Bearer ", 7);
@@ -383,6 +390,7 @@ static Status saveCurrentlyPlayingDetails() {
 #endif
     return UNEXPECTED_ERROR;
   }
+  return UNEXPECTED_ERROR;
 }
 
 // NOTE: JpegHttpContext, jpegHttpInput and jpegHttpOutput stream JPEG data directly from HTTP and resize it to 32x32 on the fly, for display on our LED matrix.
@@ -637,8 +645,7 @@ static void updateScreen() {
 #endif
 
   if (status == CANNOT_GET_ACCESS_TOKEN) {
-    while (true)
-      ;  // We cannot proceed without an access token; credentials are likely misconfigured. Halt here to avoid spamming the API with failed requests.
+    while (true) {}  // We cannot proceed without an access token; credentials are likely misconfigured. Halt here to avoid spamming the API with failed requests.
   }
 }
 

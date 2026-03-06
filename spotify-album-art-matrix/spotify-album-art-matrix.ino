@@ -35,7 +35,7 @@
 #define DEBUG false
 
 Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(PANEL_WIDTH, PANEL_HEIGHT, NUM_PANELS_ALONG_WIDTH, NUM_PANELS_ALONG_HEIGHT, WS2812B_DATA_PIN,
-                                                    NEO_TILE_TOP + NEO_TILE_RIGHT + NEO_TILE_ROWS + NEO_TILE_ZIGZAG + NEO_MATRIX_TOP + NEO_MATRIX_LEFT + NEO_MATRIX_COLUMNS + NEO_MATRIX_ZIGZAG,
+                                                    NEO_TILE_TOP + NEO_TILE_RIGHT + NEO_TILE_ROWS + NEO_TILE_PROGRESSIVE + NEO_MATRIX_TOP + NEO_MATRIX_LEFT + NEO_MATRIX_COLUMNS + NEO_MATRIX_ZIGZAG,
                                                     NEO_GRB + NEO_KHZ800);
 
 static WiFiSSLClient wifiSSLClient;
